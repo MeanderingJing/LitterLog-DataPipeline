@@ -32,21 +32,11 @@ from sqlalchemy import create_engine
 
 
 from .config import DATABASE_URL
+from .logging_config import configure_logging, redact_database_url
 from .models import CatData, Base, SCHEMA_NAME
 
-
-LOGGER = logging.getLogger("ETL")
-LOGGER.setLevel(logging.INFO)
-LOGGER.propagate = False
-formatter = logging.Formatter("%(asctime)s :%(levelname)s: %(message)s")
-
-# output on stdout
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.INFO)
-
-# add formatter to stream_handler
-stream_handler.setFormatter(formatter)
-LOGGER.addHandler(stream_handler)
+configure_logging()
+logger = logging.getLogger(__name__)
 
 DIRECTORY_WATCH_SLEEP = 30
 BASE = Base
@@ -60,7 +50,7 @@ def file_watcher(watch_dir: Path) -> None:
     """
     last_file_loaded = None
     while True:
-        LOGGER.info("globbing for existing files in %s", watch_dir)
+        logger.info("globbing for existing files in %s", watch_dir)
 
         # Find the file that was last modified
         watch_files = glob.glob(f"{watch_dir}/*")
@@ -83,43 +73,43 @@ def pipeline_data(filepath: Path) -> None:
     :param filepath: The path of a file containing the target data.
     """
     pipeline_run_id = uuid.uuid4()
-    LOGGER.info("Starting ETL pipeline %s for file %s", pipeline_run_id, filepath)
+    logger.info("Starting ETL pipeline %s for file %s", pipeline_run_id, filepath)
 
     try:
         extract_cat_data(filepath, pipeline_run_id)  # Place holder
         cat_data = transform_cat_data(filepath, pipeline_run_id)
         load_cat_data(cat_data, pipeline_run_id)
     except sqlalchemy.exc.IntegrityError as error_message:
-        LOGGER.error(
+        logger.error(
             "ETL pipeline %s Encountered IntegrityError %s",
             pipeline_run_id,
             error_message,
         )
-        if "duplicate key value violates unique constraint" in str(e):
-            LOGGER.info(
+        if "duplicate key value violates unique constraint" in str(error_message):
+            logger.info(
                 "ETL pipeline %s Duplicate key detected, removing file %s",
                 pipeline_run_id,
                 filepath,
             )
             filepath.unlink(True)
     except Exception as error_message:
-        LOGGER.error(
+        logger.error(
             "ETL pipeline %s encountered an error, aborting - %s",
             pipeline_run_id,
             error_message,
         )
         return
     # if clean_on_success:
-    #    LOGGER.info(f"ETL pipeline {pipeline_run_id} removing file {filepath}")
+    #    logger.info("ETL pipeline %s removing file %s", pipeline_run_id, filepath)
     #    filepath.unlink(True)
-    LOGGER.info("ETL pipeline %s complete", pipeline_run_id)
+    logger.info("ETL pipeline %s complete", pipeline_run_id)
 
 
 def extract_cat_data(filepath: Path, pipeline_run_id: uuid.UUID) -> Path:
     """
     pass
     """
-    LOGGER.info("ETL pipeline %s - Extracting contents of file %s", pipeline_run_id, filepath)
+    logger.info("ETL pipeline %s - Extracting contents of file %s", pipeline_run_id, filepath)
     return filepath
 
 
@@ -132,7 +122,7 @@ def transform_cat_data(filepath: Path, pipeline_run_id: uuid.UUID) -> list:
 
     Returns a list of CatData objects.
     """
-    LOGGER.info("ETL pipeline %s - Transforming csv data into CatData.", pipeline_run_id)
+    logger.info("ETL pipeline %s - Transforming csv data into CatData.", pipeline_run_id)
     with open(filepath, encoding="utf-8") as csv_file:
         cat_data_csv_reader = csv.DictReader(csv_file, quotechar='"')
         cat_data = [_from_orderedDict(row) for row in cat_data_csv_reader]
@@ -161,9 +151,9 @@ def load_cat_data(cat_data: List[CatData], pipeline_run_id: uuid.UUID) -> None:
     :Param cat_data: a list of CatData objects (CatData class is defined in models.py)
     """
 
-    LOGGER.info("ETL pipeline %s - Loading CatData to database...", pipeline_run_id)
-    LOGGER.info("ETL pipeline %s - Beginning database session...", pipeline_run_id)
-    LOGGER.info("DATABASE_URL used is %s", DATABASE_URL)
+    logger.info("ETL pipeline %s - Loading CatData to database...", pipeline_run_id)
+    logger.info("ETL pipeline %s - Beginning database session...", pipeline_run_id)
+    logger.info("Using database: %s", redact_database_url(DATABASE_URL))
 
     cat_schema_engine = create_engine(DATABASE_URL)
     # Create the cat schema if not existed
@@ -180,7 +170,7 @@ def load_cat_data(cat_data: List[CatData], pipeline_run_id: uuid.UUID) -> None:
 
     # Close the engine
     cat_schema_engine.dispose()
-    LOGGER.info("ETL pipeline %s - Loading cat_data complete", pipeline_run_id)
+    logger.info("ETL pipeline %s - Loading cat_data complete", pipeline_run_id)
 
 
 def _create_schema_if_not_exist(engine, schema_name):
@@ -190,4 +180,4 @@ def _create_schema_if_not_exist(engine, schema_name):
     with engine.connect() as conn:
         if not conn.dialect.has_schema(conn, schema_name):
             conn.execute(CreateSchema(schema_name))
-            LOGGER.info("The schema %s created successfully!", schema_name)
+            logger.info("The schema %s created successfully!", schema_name)

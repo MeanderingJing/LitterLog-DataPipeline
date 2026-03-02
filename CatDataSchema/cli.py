@@ -11,11 +11,17 @@ are located in a directory named 'alembic' in the same directory as this module.
 Both scripts are added as entry points in the package's setup.py file.
 """
 
+import logging
 from os import environ
 from pathlib import Path
+
 import click
 from dotenv import load_dotenv
+
 from .etl import file_watcher
+from .logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 # click.command() decorator takes in the function test_data_watcher() and modify it so that it can be called from the command line
@@ -29,6 +35,7 @@ def cat_data_watcher():
     Use watchdog to monitor the test data directory and fire our etl process
     """
     load_dotenv()
+    configure_logging()
     cat_data_dir = environ.get("CAT_DATA_DMZ", "/var/nfs/cat_watcher_output")
     file_watcher(Path(cat_data_dir))
 
@@ -44,9 +51,11 @@ def migrate():
     from alembic.command import upgrade
     from alembic.config import Config
 
+    load_dotenv()
+    configure_logging()
     ALEMBIC_CONFIG_FILE = Path(__file__).parent / "alembic.ini"
 
-    print("Migrating database ...")
+    logger.info("Migrating database ...")
     # Create an Alembic configuration object
     alembic_cfg = Config(str(ALEMBIC_CONFIG_FILE))
     # Set a configuration option for Alembic that specifies the directory where the Alembic migration scripts are located.
@@ -55,4 +64,4 @@ def migrate():
         "script_location", str((Path(__file__).parent / "alembic").absolute())
     )
     upgrade(alembic_cfg, "head")
-    print("Data migration completed!")
+    logger.info("Data migration completed.")
