@@ -13,7 +13,12 @@ This program can be set up as a service running in the background, so it will al
 ## Building the Project from Source
 ### Before building, make sure:
 - The postgres database is set up with the target role, database, and password (should match `DATABASE_URL` in `.env`).
-- (Optional) [The metabase service](https://github.com/emma-jinger/Set-Up-a-Service-on-Ubuntu) has been configured, with the metabase unit file located at `/etc/systemd/system/metabase.service` and the service environment variable file at `/etc/default/metabase`, defining its setup. This configuration allows for effortless data viewing.  
+- (Optional) [The metabase service](https://github.com/emma-jinger/Set-Up-a-Service-on-Ubuntu) has been configured, with the metabase unit file located at `/etc/systemd/system/metabase.service` and the service environment variable file at `/etc/default/metabase`, defining its setup. This configuration allows for effortless data viewing.
+
+### Logging (optional)
+You can set these in `.env` or as environment variables:
+- **LOG_LEVEL**: Minimum log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Default: `INFO`.
+- **LOG_FILE**: If set, logs are also written to this file with rotation (1 MB per file, 5 backups). Useful when running as a service so you can inspect logs after the fact.  
 
 ### Set up a virtual environment on the server (optional)
 Create a virtual environment `cat_data_pipeline_venv` using the command `python3 -m venv cat_data_pipeline_venv`
